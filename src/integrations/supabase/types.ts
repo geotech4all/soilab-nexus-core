@@ -124,6 +124,35 @@ export type Database = {
           },
         ]
       }
+      project_locations: {
+        Row: {
+          created_at: string
+          geom: unknown | null
+          id: string
+          project_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          geom?: unknown | null
+          id?: string
+          project_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          geom?: unknown | null
+          id?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_locations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           company_id: string | null
