@@ -1,52 +1,26 @@
 import { useAuth } from '@/hooks/useAuth';
-import { SignUpForm } from '@/components/auth/SignUpForm';
-import { RoleBasedComponent } from '@/components/auth/RoleBasedComponent';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
-import { useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { Beaker, Building, Users, ArrowRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 
 const Index = () => {
-  const { isAuthenticated, loading } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const { isAuthenticated, userProfile, loading } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        toast({
-          title: 'Error',
-          description: error.message,
-          variant: 'destructive',
-        });
+  useEffect(() => {
+    if (isAuthenticated && userProfile) {
+      // Redirect based on role
+      if (userProfile.role === 'admin') {
+        navigate('/admin-dashboard');
+      } else if (userProfile.role === 'company') {
+        navigate('/company-dashboard');
       } else {
-        toast({
-          title: 'Success',
-          description: 'Signed in successfully!',
-        });
+        navigate('/dashboard');
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'An unexpected error occurred',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [isAuthenticated, userProfile, navigate]);
 
   if (loading) {
     return (
@@ -58,70 +32,87 @@ const Index = () => {
     );
   }
 
-  if (isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background p-4">
-        <div className="max-w-4xl mx-auto">
-          <RoleBasedComponent />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
-        <Tabs defaultValue="signin" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="signin">
-            <Card>
+    <div className="min-h-screen bg-background">
+      {/* Hero Section */}
+      <section className="relative py-20 px-4">
+        <div className="container mx-auto text-center">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <Beaker className="h-12 w-12 text-primary" />
+            <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              SoilLab
+            </h1>
+          </div>
+          <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+            Professional soil testing and analysis platform for accurate, reliable results
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link to="/signup">
+              <Button size="lg" className="w-full sm:w-auto">
+                Get Started <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+            <Link to="/login">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                Sign In
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-20 px-4 bg-muted/30">
+        <div className="container mx-auto">
+          <h2 className="text-3xl font-bold text-center mb-12">Why Choose SoilLab?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <Card className="text-center">
               <CardHeader>
-                <CardTitle>Sign In</CardTitle>
+                <Beaker className="h-12 w-12 text-primary mx-auto mb-4" />
+                <CardTitle>Accurate Testing</CardTitle>
                 <CardDescription>
-                  Enter your credentials to access your account
+                  State-of-the-art soil analysis with precise, reliable results you can trust
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <label htmlFor="email">Email</label>
-                    <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-3 py-2 border border-input rounded-md"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label htmlFor="password">Password</label>
-                    <input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-3 py-2 border border-input rounded-md"
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Signing In...' : 'Sign In'}
-                  </Button>
-                </form>
-              </CardContent>
             </Card>
-          </TabsContent>
-          
-          <TabsContent value="signup">
-            <SignUpForm />
-          </TabsContent>
-        </Tabs>
-      </div>
+            
+            <Card className="text-center">
+              <CardHeader>
+                <Building className="h-12 w-12 text-primary mx-auto mb-4" />
+                <CardTitle>Company Management</CardTitle>
+                <CardDescription>
+                  Comprehensive tools for companies to manage projects, teams, and testing workflows
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            
+            <Card className="text-center">
+              <CardHeader>
+                <Users className="h-12 w-12 text-primary mx-auto mb-4" />
+                <CardTitle>Team Collaboration</CardTitle>
+                <CardDescription>
+                  Seamless collaboration between administrators, companies, and field technicians
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 px-4">
+        <div className="container mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
+          <p className="text-xl text-muted-foreground mb-8">
+            Join thousands of professionals using SoilLab for their soil testing needs
+          </p>
+          <Link to="/signup">
+            <Button size="lg">
+              Create Your Account <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      </section>
     </div>
   );
 };
