@@ -20,6 +20,7 @@ export const signUpWithRole = async (
   password: string,
   fullName: string,
   role: UserRole = 'user',
+  companyName?: string,
   companyId?: string
 ) => {
   try {
@@ -35,13 +36,31 @@ export const signUpWithRole = async (
     if (authError) throw authError;
     if (!authData.user) throw new Error('No user data returned');
 
+    // Handle company creation/association
+    let finalCompanyId = companyId;
+    
+    if (companyName && !companyId) {
+      // Create a new company
+      const { data: companyData, error: companyError } = await supabase
+        .from('companies')
+        .insert({
+          name: companyName,
+          contact_email: email,
+        })
+        .select()
+        .single();
+
+      if (companyError) throw companyError;
+      finalCompanyId = companyData.id;
+    }
+
     // Then, create the user record in our users table with the role
     const userData: TablesInsert<'users'> = {
       id: authData.user.id,
       email,
       full_name: fullName,
       role,
-      company_id: companyId || null,
+      company_id: finalCompanyId || null,
     };
 
     const { data: userRecord, error: userError } = await supabase

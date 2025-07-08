@@ -14,6 +14,7 @@ const Signup = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [role, setRole] = useState<UserRole>('user');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -42,7 +43,8 @@ const Signup = () => {
         email,
         password,
         fullName,
-        role
+        role,
+        companyName
       );
 
       if (error) {
@@ -64,6 +66,7 @@ const Signup = () => {
         setEmail('');
         setPassword('');
         setFullName('');
+        setCompanyName('');
         setRole('user');
       }
     } catch (error) {
@@ -121,6 +124,18 @@ const Signup = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Create a password"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input
+                id="companyName"
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Enter your company name"
                 required
               />
             </div>
