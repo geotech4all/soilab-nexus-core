@@ -17,3 +17,18 @@ port = 54323
 
 [functions.calculate-geotechnical-parameters]
 verify_jwt = true
+
+[functions.compute-spt]
+verify_jwt = true
+
+[functions.compute-cpt]
+verify_jwt = true
+
+[functions.compute-atterberg]
+verify_jwt = true
+
+[functions.compute-psd]
+verify_jwt = true
+
+[functions.compute-cbr]
+verify_jwt = true
