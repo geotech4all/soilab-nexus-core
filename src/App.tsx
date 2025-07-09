@@ -11,6 +11,7 @@ import CompanyDashboard from "./pages/CompanyDashboard";
 import Dashboard from "./pages/Dashboard";
 import CreateProject from "./pages/CreateProject";
 import ProjectDetail from "./pages/ProjectDetail";
+import BoreholeLog from "./pages/BoreholeLog";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/create-project" element={<CreateProject />} />
           <Route path="/project/:id" element={<ProjectDetail />} />
+          <Route path="/borehole/:boreholeId" element={<BoreholeLog />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
