@@ -1,38 +1,34 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// TypeScript interfaces
-interface CBRRawData {
-  penetration: number[]; // mm
-  load: number[]; // kN or lbs
-  // Specimen data
-  initial_moisture_content?: number;
-  final_moisture_content?: number;
-  dry_density?: number;
-  optimum_moisture_content?: number;
-  maximum_dry_density?: number;
-  surcharge_weight?: number;
-  specimen_diameter?: number;
-  specimen_height?: number;
-}
+// Initialize Supabase client
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+);
 
-interface CBRMetadata {
-  test_condition?: 'soaked' | 'unsoaked';
-  soaking_period?: number; // days
-  surcharge_pressure?: number; // kPa
-  compaction_method?: 'standard' | 'modified';
-  units?: 'metric' | 'imperial';
+// TypeScript interfaces
+interface CBRDataPoint {
+  penetration: number; // mm
+  load: number; // kN or lbs
 }
 
 interface CBRRequest {
   test_id: string;
-  raw_data: CBRRawData;
-  metadata?: CBRMetadata;
+  data: CBRDataPoint[];
+  corrections?: {
+    moisture_correction?: number;
+    density_correction?: number;
+    surcharge?: number;
+  };
+  units?: 'metric' | 'imperial';
+  store?: boolean;
 }
 
 interface CBRComputedData {
@@ -53,15 +49,17 @@ interface CBRComputedData {
 }
 
 interface CBRResponse {
-  success: boolean;
-  computed_data: CBRComputedData;
-  visualization_data: {
+  status: 'success' | 'error';
+  message?: string;
+  computed_data?: CBRComputedData;
+  chart_data?: {
     load_penetration_curve: Array<{x: number, y: number}>;
     corrected_curve?: Array<{x: number, y: number}>;
   };
-  classifications: string[];
-  warnings: string[];
-  reference_standards: string[];
+  interpretation?: string;
+  standard?: string;
+  classifications?: string[];
+  warnings?: string[];
 }
 
 function correctLoadPenetrationCurve(penetration: number[], load: number[]): {penetration: number[], load: number[]} {
@@ -147,91 +145,166 @@ function getRecommendedUses(cbr: number): string[] {
   return uses;
 }
 
-function calculateCBRParameters(rawData: CBRRawData, metadata?: CBRMetadata): CBRResponse {
-  const warnings: string[] = [];
-  
-  if (!rawData.penetration || !rawData.load || rawData.penetration.length !== rawData.load.length) {
-    throw new Error('Invalid penetration and load data');
+function validateCBRData(data: CBRDataPoint[]): string | null {
+  if (!Array.isArray(data) || data.length === 0) {
+    return 'Data array is required and cannot be empty';
   }
-  
-  // Apply load-penetration curve correction
-  const { penetration, load: correctedLoad } = correctLoadPenetrationCurve(rawData.penetration, rawData.load);
-  
-  // Interpolate loads at standard penetrations
-  const load_2_5mm = interpolateLoad(penetration, correctedLoad, 2.5);
-  const load_5mm = interpolateLoad(penetration, correctedLoad, 5.0);
-  
-  // Standard loads for CBR calculation (ASTM D1883)
-  const standardLoad_2_5mm = 13.24; // kN (for 2.5mm penetration)
-  const standardLoad_5mm = 19.96; // kN (for 5mm penetration)
-  
-  // Calculate CBR values
-  const cbr_2_5mm = (load_2_5mm / standardLoad_2_5mm) * 100;
-  const cbr_5mm = (load_5mm / standardLoad_5mm) * 100;
-  
-  // Design CBR is typically the larger of the two values
-  const designCBR = Math.max(cbr_2_5mm, cbr_5mm);
-  
-  // Unit pressures (stress)
-  const pistonArea = Math.PI * Math.pow(25.4, 2) / 4; // Standard piston area (mm²)
-  const unitPressure_2_5mm = (load_2_5mm * 1000) / pistonArea; // kPa
-  const unitPressure_5mm = (load_5mm * 1000) / pistonArea; // kPa
-  
-  // Classifications
-  const bearingCapacityClass = getBearingCapacityClassification(designCBR);
-  const subgradeClass = getSubgradeClassification(designCBR);
-  const recommendedUses = getRecommendedUses(designCBR);
-  
-  // Warnings
-  if (cbr_5mm > cbr_2_5mm * 1.2) {
-    warnings.push('CBR at 5mm exceeds 2.5mm value significantly - check curve correction');
+
+  for (const point of data) {
+    if (point.penetration < 0) {
+      return 'Penetration values must be >= 0';
+    }
+    if (point.load < 0) {
+      return 'Load values must be >= 0';
+    }
   }
-  if (designCBR > 100) {
-    warnings.push('CBR exceeds 100% - verify test procedure and calculations');
+
+  // Check if data includes required penetration values
+  const penetrations = data.map(d => d.penetration);
+  const has2_5mm = penetrations.some(p => Math.abs(p - 2.5) < 0.1);
+  const has5_0mm = penetrations.some(p => Math.abs(p - 5.0) < 0.1);
+  
+  if (!has2_5mm && !has5_0mm) {
+    return 'Data must include penetration values at 2.5mm and/or 5.0mm';
   }
-  if (load_2_5mm === 0 || load_5mm === 0) {
-    warnings.push('Could not interpolate standard penetration loads - extend test data');
+
+  return null;
+}
+
+async function calculateCBRParameters(request: CBRRequest): Promise<CBRResponse> {
+  try {
+    // Validate input data
+    const validationError = validateCBRData(request.data);
+    if (validationError) {
+      return {
+        status: 'error',
+        message: validationError
+      };
+    }
+
+    const warnings: string[] = [];
+    const classifications: string[] = [];
+
+    // Extract penetration and load arrays
+    const penetration = request.data.map(d => d.penetration);
+    const load = request.data.map(d => d.load);
+
+    // Apply load-penetration curve correction
+    const { penetration: corrPen, load: correctedLoad } = correctLoadPenetrationCurve(penetration, load);
+
+    // Interpolate loads at standard penetrations
+    const load_2_5mm = interpolateLoad(corrPen, correctedLoad, 2.5);
+    const load_5mm = interpolateLoad(corrPen, correctedLoad, 5.0);
+
+    // Standard loads for CBR calculation (ASTM D1883)
+    const standardLoad_2_5mm = request.units === 'imperial' ? 3000 : 13.24; // lbs or kN
+    const standardLoad_5mm = request.units === 'imperial' ? 4500 : 19.96;   // lbs or kN
+
+    // Calculate CBR values
+    const cbr_2_5mm = (load_2_5mm / standardLoad_2_5mm) * 100;
+    const cbr_5mm = (load_5mm / standardLoad_5mm) * 100;
+
+    // Design CBR is typically the larger of the two values
+    const designCBR = Math.max(cbr_2_5mm, cbr_5mm);
+
+    // Unit pressures (stress)
+    const pistonArea = Math.PI * Math.pow(25.4, 2) / 4; // Standard piston area (mm²)
+    const unitPressure_2_5mm = (load_2_5mm * 1000) / pistonArea; // kPa
+    const unitPressure_5mm = (load_5mm * 1000) / pistonArea; // kPa
+
+    // Classifications
+    const bearingCapacityClass = getBearingCapacityClassification(designCBR);
+    const subgradeClass = getSubgradeClassification(designCBR);
+    const recommendedUses = getRecommendedUses(designCBR);
+
+    // Add warnings
+    if (cbr_5mm > cbr_2_5mm * 1.2) {
+      warnings.push('CBR at 5mm exceeds 2.5mm value significantly - check curve correction');
+    }
+    if (designCBR > 100) {
+      warnings.push('CBR exceeds 100% - verify test procedure and calculations');
+    }
+    if (load_2_5mm === 0 || load_5mm === 0) {
+      warnings.push('Could not interpolate standard penetration loads - extend test data');
+    }
+
+    classifications.push(bearingCapacityClass, subgradeClass);
+
+    const computedData: CBRComputedData = {
+      cbr_at_2_5mm: cbr_2_5mm,
+      cbr_at_5mm: cbr_5mm,
+      design_cbr: designCBR,
+      corrected_loads: {
+        penetration_2_5mm: 2.5,
+        penetration_5mm: 5.0,
+        load_2_5mm: load_2_5mm,
+        load_5mm: load_5mm
+      },
+      unit_pressure_2_5mm: unitPressure_2_5mm,
+      unit_pressure_5mm: unitPressure_5mm,
+      bearing_capacity_classification: bearingCapacityClass,
+      subgrade_classification: subgradeClass,
+      recommended_uses: recommendedUses
+    };
+
+    // Store results in database if requested
+    if (request.store && request.test_id) {
+      await supabase.from('test_results').insert({
+        test_id: request.test_id,
+        computed_data: computedData,
+        raw_data: request.data,
+        metadata: {
+          corrections: request.corrections,
+          units: request.units,
+          warnings,
+          classifications
+        }
+      });
+    }
+
+    // Prepare chart data
+    const loadPenetrationCurve = request.data.map(d => ({
+      x: d.penetration,
+      y: d.load
+    }));
+
+    const correctedCurve = corrPen.map((p, i) => ({
+      x: p,
+      y: correctedLoad[i]
+    }));
+
+    // Overall interpretation
+    let interpretation = '';
+    if (designCBR < 3) {
+      interpretation = `Very weak subgrade (CBR: ${designCBR.toFixed(1)}%) - extensive soil improvement required`;
+    } else if (designCBR < 8) {
+      interpretation = `Weak to fair subgrade (CBR: ${designCBR.toFixed(1)}%) - consider soil stabilization`;
+    } else if (designCBR < 20) {
+      interpretation = `Good subgrade (CBR: ${designCBR.toFixed(1)}%) - suitable for most pavement applications`;
+    } else {
+      interpretation = `Excellent subgrade (CBR: ${designCBR.toFixed(1)}%) - suitable for heavy traffic loads`;
+    }
+
+    return {
+      status: 'success',
+      computed_data: computedData,
+      chart_data: {
+        load_penetration_curve: loadPenetrationCurve,
+        corrected_curve: correctedCurve
+      },
+      interpretation,
+      standard: 'ASTM D1883',
+      classifications,
+      warnings
+    };
+
+  } catch (error) {
+    console.error('Error in CBR computation:', error);
+    return {
+      status: 'error',
+      message: error.message
+    };
   }
-  
-  const computedData: CBRComputedData = {
-    cbr_at_2_5mm: cbr_2_5mm,
-    cbr_at_5mm: cbr_5mm,
-    design_cbr: designCBR,
-    corrected_loads: {
-      penetration_2_5mm: 2.5,
-      penetration_5mm: 5.0,
-      load_2_5mm: load_2_5mm,
-      load_5mm: load_5mm
-    },
-    unit_pressure_2_5mm: unitPressure_2_5mm,
-    unit_pressure_5mm: unitPressure_5mm,
-    bearing_capacity_classification: bearingCapacityClass,
-    subgrade_classification: subgradeClass,
-    recommended_uses: recommendedUses
-  };
-  
-  // Visualization data
-  const loadPenetrationCurve = penetration.map((p, i) => ({
-    x: p,
-    y: rawData.load[i]
-  }));
-  
-  const correctedCurve = penetration.map((p, i) => ({
-    x: p,
-    y: correctedLoad[i]
-  }));
-  
-  return {
-    success: true,
-    computed_data: computedData,
-    visualization_data: {
-      load_penetration_curve: loadPenetrationCurve,
-      corrected_curve: correctedCurve
-    },
-    classifications: [bearingCapacityClass, subgradeClass],
-    warnings,
-    reference_standards: ['ASTM D1883', 'BS 1377-4', 'AASHTO T193', 'AS 1289.6.1.1']
-  };
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -242,7 +315,10 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      return new Response(JSON.stringify({ 
+        status: 'error', 
+        message: 'Method not allowed' 
+      }), {
         status: 405,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -250,8 +326,11 @@ serve(async (req: Request): Promise<Response> => {
 
     const requestData: CBRRequest = await req.json();
     
-    if (!requestData.test_id || !requestData.raw_data) {
-      return new Response(JSON.stringify({ error: 'Missing required fields: test_id and raw_data' }), {
+    if (!requestData.test_id || !requestData.data) {
+      return new Response(JSON.stringify({ 
+        status: 'error', 
+        message: 'Missing required fields: test_id and data' 
+      }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -259,7 +338,7 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log('Processing CBR computation for test:', requestData.test_id);
     
-    const result = calculateCBRParameters(requestData.raw_data, requestData.metadata);
+    const result = await calculateCBRParameters(requestData);
     
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -268,8 +347,8 @@ serve(async (req: Request): Promise<Response> => {
   } catch (error) {
     console.error('Error in CBR computation:', error);
     return new Response(JSON.stringify({ 
-      success: false,
-      error: error.message 
+      status: 'error',
+      message: error.message 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

@@ -1,35 +1,33 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// TypeScript interfaces
-interface PSDRawData {
-  sieve_sizes: number[]; // mm
-  percent_passing: number[];
-  // Or aggregated data
-  gravel_percent?: number;
-  sand_percent?: number;
-  fines_percent?: number;
-  d10?: number;
-  d30?: number;
-  d60?: number;
-}
+// Initialize Supabase client
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+);
 
-interface PSDMetadata {
-  test_method?: 'wet_sieving' | 'dry_sieving' | 'hydrometer';
-  wash_loss?: number;
-  sample_mass?: number;
-  specimen_preparation?: string;
+// TypeScript interfaces
+interface PSDDataPoint {
+  sieve_size: number; // mm
+  percent_passing: number; // %
 }
 
 interface PSDRequest {
   test_id: string;
-  raw_data: PSDRawData;
-  metadata?: PSDMetadata;
+  data: PSDDataPoint[];
+  corrections?: {
+    moisture_correction?: number;
+    temperature_correction?: number;
+  };
+  units?: 'metric' | 'imperial';
+  store?: boolean;
 }
 
 interface PSDComputedData {
@@ -50,15 +48,16 @@ interface PSDComputedData {
 }
 
 interface PSDResponse {
-  success: boolean;
-  computed_data: PSDComputedData;
-  visualization_data: {
+  status: 'success' | 'error';
+  message?: string;
+  computed_data?: PSDComputedData;
+  chart_data?: {
     grain_size_curve: Array<{x: number, y: number}>;
-    gradation_limits?: Array<{x: number, y_upper: number, y_lower: number}>;
   };
-  classifications: string[];
-  warnings: string[];
-  reference_standards: string[];
+  interpretation?: string;
+  standard?: string;
+  classifications?: string[];
+  warnings?: string[];
 }
 
 function interpolatePercentPassing(sieveSizes: number[], percentPassing: number[], targetSize: number): number {
@@ -151,100 +150,148 @@ function getGradationDescription(cu: number, cc: number): string {
   }
 }
 
-function calculatePSDParameters(rawData: PSDRawData, metadata?: PSDMetadata): PSDResponse {
-  const warnings: string[] = [];
-  
-  let sieveSizes = rawData.sieve_sizes;
-  let percentPassing = rawData.percent_passing;
-  
-  // If direct percentages are provided instead of sieve data
-  if (!sieveSizes && rawData.gravel_percent !== undefined) {
-    // Create approximate sieve data from aggregate percentages
-    sieveSizes = [75, 4.75, 0.075, 0.002]; // Typical boundaries
-    const gravel = rawData.gravel_percent;
-    const sand = rawData.sand_percent || 0;
-    const fines = rawData.fines_percent || 0;
-    percentPassing = [100, 100 - gravel, 100 - gravel - sand, fines];
+function validatePSDData(data: PSDDataPoint[]): string | null {
+  if (!Array.isArray(data) || data.length === 0) {
+    return 'Data array is required and cannot be empty';
   }
-  
-  if (!sieveSizes || !percentPassing) {
-    throw new Error('Insufficient sieve data for PSD analysis');
+
+  for (const point of data) {
+    if (!point.sieve_size || point.sieve_size <= 0) {
+      return 'Sieve size is required and must be greater than 0';
+    }
+    if (point.percent_passing < 0 || point.percent_passing > 100) {
+      return 'Percent passing must be between 0 and 100';
+    }
   }
-  
-  // Sort data by decreasing sieve size
-  const combined = sieveSizes.map((size, i) => ({ size, passing: percentPassing[i] }))
-    .sort((a, b) => b.size - a.size);
-  sieveSizes = combined.map(item => item.size);
-  percentPassing = combined.map(item => item.passing);
-  
-  // Calculate characteristic diameters
-  const d10 = findDiameter(sieveSizes, percentPassing, 10);
-  const d30 = findDiameter(sieveSizes, percentPassing, 30);
-  const d60 = findDiameter(sieveSizes, percentPassing, 60);
-  const d85 = findDiameter(sieveSizes, percentPassing, 85);
-  
-  // Calculate coefficients
-  const cu = d60 > 0 ? d60 / d10 : 0; // Coefficient of uniformity
-  const cc = (d10 > 0 && d60 > 0) ? (d30 * d30) / (d60 * d10) : 0; // Coefficient of curvature
-  
-  // Calculate fractions
-  const gravel = 100 - interpolatePercentPassing(sieveSizes, percentPassing, 4.75);
-  const sand = interpolatePercentPassing(sieveSizes, percentPassing, 4.75) - 
-                interpolatePercentPassing(sieveSizes, percentPassing, 0.075);
-  const fines = interpolatePercentPassing(sieveSizes, percentPassing, 0.075);
-  
-  // Classifications
-  const uscsClassification = getUSCSClassification(gravel, sand, fines, cu, cc);
-  const aashtoClassification = getAASHTOClassification(gravel, sand, fines);
-  const gradation = getGradationDescription(cu, cc);
-  
-  // Soil description
-  let soilDescription = '';
-  if (gravel > 50) soilDescription = 'Gravel';
-  else if (sand > 50) soilDescription = 'Sand';
-  else soilDescription = 'Fine-grained soil';
-  
-  if (fines > 12) soilDescription += ' with fines';
-  soilDescription += ` (${gradation.toLowerCase()})`;
-  
-  // Warnings
-  if (d10 === 0) warnings.push('D10 could not be determined - possibly gap-graded soil');
-  if (cu > 100) warnings.push('Very high coefficient of uniformity - check gradation curve');
-  if (fines > 12 && fines < 50) warnings.push('Intermediate fines content - dual classification may apply');
-  
-  const computedData: PSDComputedData = {
-    d10,
-    d30,
-    d60,
-    d85,
-    coefficient_of_uniformity: cu,
-    coefficient_of_curvature: cc,
-    gravel_percent: gravel,
-    sand_percent: sand,
-    fines_percent: fines,
-    uscs_classification: uscsClassification,
-    aashto_classification: aashtoClassification,
-    soil_description: soilDescription,
-    gradation,
-    effective_size: d10
-  };
-  
-  // Visualization data
-  const grainSizeCurve = sieveSizes.map((size, i) => ({
-    x: size,
-    y: percentPassing[i]
-  }));
-  
-  return {
-    success: true,
-    computed_data: computedData,
-    visualization_data: {
-      grain_size_curve: grainSizeCurve
-    },
-    classifications: [uscsClassification, aashtoClassification],
-    warnings,
-    reference_standards: ['ASTM D6913', 'ASTM D7928', 'BS 1377-2', 'AASHTO T27']
-  };
+
+  return null;
+}
+
+async function calculatePSDParameters(request: PSDRequest): Promise<PSDResponse> {
+  try {
+    // Validate input data
+    const validationError = validatePSDData(request.data);
+    if (validationError) {
+      return {
+        status: 'error',
+        message: validationError
+      };
+    }
+
+    const warnings: string[] = [];
+    const classifications: string[] = [];
+
+    // Sort data by decreasing sieve size
+    const sortedData = [...request.data].sort((a, b) => b.sieve_size - a.sieve_size);
+    const sieveSizes = sortedData.map(d => d.sieve_size);
+    const percentPassing = sortedData.map(d => d.percent_passing);
+
+    // Calculate characteristic diameters
+    const d10 = findDiameter(sieveSizes, percentPassing, 10);
+    const d30 = findDiameter(sieveSizes, percentPassing, 30);
+    const d60 = findDiameter(sieveSizes, percentPassing, 60);
+    const d85 = findDiameter(sieveSizes, percentPassing, 85);
+
+    // Calculate coefficients
+    const cu = d60 > 0 ? d60 / d10 : 0; // Coefficient of uniformity
+    const cc = (d10 > 0 && d60 > 0) ? (d30 * d30) / (d60 * d10) : 0; // Coefficient of curvature
+
+    // Calculate fractions
+    const gravel = 100 - interpolatePercentPassing(sieveSizes, percentPassing, 4.75);
+    const sand = interpolatePercentPassing(sieveSizes, percentPassing, 4.75) - 
+                 interpolatePercentPassing(sieveSizes, percentPassing, 0.075);
+    const fines = interpolatePercentPassing(sieveSizes, percentPassing, 0.075);
+
+    // Classifications
+    const uscsClassification = getUSCSClassification(gravel, sand, fines, cu, cc);
+    const aashtoClassification = getAASHTOClassification(gravel, sand, fines);
+    const gradation = getGradationDescription(cu, cc);
+
+    // Soil description
+    let soilDescription = '';
+    if (gravel > 50) soilDescription = 'Gravel';
+    else if (sand > 50) soilDescription = 'Sand';
+    else soilDescription = 'Fine-grained soil';
+
+    if (fines > 12) soilDescription += ' with fines';
+    soilDescription += ` (${gradation.toLowerCase()})`;
+
+    // Add warnings
+    if (d10 === 0) warnings.push('D10 could not be determined - possibly gap-graded soil');
+    if (cu > 100) warnings.push('Very high coefficient of uniformity - check gradation curve');
+    if (fines > 12 && fines < 50) warnings.push('Intermediate fines content - dual classification may apply');
+
+    classifications.push(uscsClassification, aashtoClassification);
+
+    const computedData: PSDComputedData = {
+      d10,
+      d30,
+      d60,
+      d85,
+      coefficient_of_uniformity: cu,
+      coefficient_of_curvature: cc,
+      gravel_percent: gravel,
+      sand_percent: sand,
+      fines_percent: fines,
+      uscs_classification: uscsClassification,
+      aashto_classification: aashtoClassification,
+      soil_description: soilDescription,
+      gradation,
+      effective_size: d10
+    };
+
+    // Store results in database if requested
+    if (request.store && request.test_id) {
+      await supabase.from('test_results').insert({
+        test_id: request.test_id,
+        computed_data: computedData,
+        raw_data: request.data,
+        metadata: {
+          corrections: request.corrections,
+          units: request.units,
+          warnings,
+          classifications
+        }
+      });
+    }
+
+    // Prepare chart data
+    const grainSizeCurve = sortedData.map(d => ({
+      x: d.sieve_size,
+      y: d.percent_passing
+    }));
+
+    // Overall interpretation
+    let interpretation = '';
+    if (fines < 5) {
+      interpretation = 'Clean granular soil - excellent drainage, good for foundations';
+    } else if (fines < 12) {
+      interpretation = 'Granular soil with some fines - good engineering properties';
+    } else if (fines < 50) {
+      interpretation = 'Mixed soil - engineering properties depend on fines plasticity';
+    } else {
+      interpretation = 'Fine-grained soil - plasticity characteristics control behavior';
+    }
+
+    return {
+      status: 'success',
+      computed_data: computedData,
+      chart_data: {
+        grain_size_curve: grainSizeCurve
+      },
+      interpretation,
+      standard: 'ASTM D6913',
+      classifications,
+      warnings
+    };
+
+  } catch (error) {
+    console.error('Error in PSD computation:', error);
+    return {
+      status: 'error',
+      message: error.message
+    };
+  }
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -255,7 +302,10 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      return new Response(JSON.stringify({ 
+        status: 'error', 
+        message: 'Method not allowed' 
+      }), {
         status: 405,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -263,8 +313,11 @@ serve(async (req: Request): Promise<Response> => {
 
     const requestData: PSDRequest = await req.json();
     
-    if (!requestData.test_id || !requestData.raw_data) {
-      return new Response(JSON.stringify({ error: 'Missing required fields: test_id and raw_data' }), {
+    if (!requestData.test_id || !requestData.data) {
+      return new Response(JSON.stringify({ 
+        status: 'error', 
+        message: 'Missing required fields: test_id and data' 
+      }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -272,7 +325,7 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log('Processing PSD computation for test:', requestData.test_id);
     
-    const result = calculatePSDParameters(requestData.raw_data, requestData.metadata);
+    const result = await calculatePSDParameters(requestData);
     
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -281,8 +334,8 @@ serve(async (req: Request): Promise<Response> => {
   } catch (error) {
     console.error('Error in PSD computation:', error);
     return new Response(JSON.stringify({ 
-      success: false,
-      error: error.message 
+      status: 'error',
+      message: error.message 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
