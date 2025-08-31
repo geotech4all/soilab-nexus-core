@@ -71,7 +71,7 @@ function calculateCPTParameters(rawData: CPTRawData[], metadata?: CPTMetadata): 
     // Calculate soil behavior type index (Ic) - Robertson & Wride (1998)
     const qtn = Math.log10(qt); // Normalized cone resistance
     const fr = Math.log10(frictionRatio + 0.1); // Avoid log(0)
-    const ic = Math.sqrt((3.47 - qtn)² + (1.22 + fr)²);
+    const ic = Math.sqrt((3.47 - qtn)**2 + (1.22 + fr)**2);
     
     // Soil behavior type classification
     let soilBehaviorType = '';
