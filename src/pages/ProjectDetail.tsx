@@ -371,12 +371,13 @@ const ProjectDetail = () => {
 
         {/* Tab Navigation */}
         <Tabs defaultValue="boreholes" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="boreholes">Boreholes</TabsTrigger>
-            <TabsTrigger value="tests">Tests</TabsTrigger>
-            <TabsTrigger value="map">Map View</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-          </TabsList>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="boreholes">Boreholes</TabsTrigger>
+              <TabsTrigger value="tests">Tests</TabsTrigger>
+              <TabsTrigger value="foundation">Foundation</TabsTrigger>
+              <TabsTrigger value="map">Map View</TabsTrigger>
+              <TabsTrigger value="reports">Reports</TabsTrigger>
+            </TabsList>
 
           {/* Boreholes Tab */}
           <TabsContent value="boreholes" className="space-y-4">
@@ -615,6 +616,38 @@ const ProjectDetail = () => {
                     )}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Foundation Tab */}
+          <TabsContent value="foundation" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Foundation Analysis</h3>
+              <Button onClick={() => navigate(`/foundation/${id}`)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Analysis
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Foundation Design & Analysis</CardTitle>
+                <CardDescription>
+                  Perform shallow and deep foundation analysis using project data
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <Building className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-lg font-medium mb-2">Foundation Analysis Tool</p>
+                  <p className="text-muted-foreground mb-4">
+                    Analyze bearing capacity, settlement, and pile capacity using project boreholes and test data
+                  </p>
+                  <Button onClick={() => navigate(`/foundation/${id}`)}>
+                    Start Foundation Analysis
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
