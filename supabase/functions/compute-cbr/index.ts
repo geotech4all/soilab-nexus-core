@@ -16,18 +16,28 @@ const supabase = createClient(
 // TypeScript interfaces
 interface CBRDataPoint {
   penetration: number; // mm
-  load: number; // kN or lbs
+  load: number; // kN, N, or kg
 }
 
+// Simplified interface for direct input
+interface SimpleCBRRequest {
+  penetration: number[]; // mm
+  load: number[]; // kg, N, or kN
+  units?: 'kg' | 'N' | 'kN';
+}
+
+// Full interface for comprehensive analysis
 interface CBRRequest {
-  test_id: string;
-  data: CBRDataPoint[];
+  test_id?: string;
+  data?: CBRDataPoint[];
+  penetration?: number[]; // Alternative simple format
+  load?: number[]; // Alternative simple format
   corrections?: {
     moisture_correction?: number;
     density_correction?: number;
     surcharge?: number;
   };
-  units?: 'metric' | 'imperial';
+  units?: 'kg' | 'N' | 'kN' | 'metric' | 'imperial';
   store?: boolean;
 }
 
@@ -145,49 +155,83 @@ function getRecommendedUses(cbr: number): string[] {
   return uses;
 }
 
-function validateCBRData(data: CBRDataPoint[]): string | null {
-  if (!Array.isArray(data) || data.length === 0) {
-    return 'Data array is required and cannot be empty';
-  }
-
-  for (const point of data) {
-    if (point.penetration < 0) {
-      return 'Penetration values must be >= 0';
-    }
-    if (point.load < 0) {
-      return 'Load values must be >= 0';
-    }
-  }
-
-  // Check if data includes required penetration values
-  const penetrations = data.map(d => d.penetration);
-  const has2_5mm = penetrations.some(p => Math.abs(p - 2.5) < 0.1);
-  const has5_0mm = penetrations.some(p => Math.abs(p - 5.0) < 0.1);
+function validateCBRInput(request: CBRRequest): { error?: string, penetration: number[], load: number[] } {
+  let penetration: number[];
+  let load: number[];
   
-  if (!has2_5mm && !has5_0mm) {
-    return 'Data must include penetration values at 2.5mm and/or 5.0mm';
+  // Handle different input formats
+  if (request.data && Array.isArray(request.data)) {
+    // Original format with data points
+    if (request.data.length === 0) {
+      return { error: 'Data array cannot be empty' };
+    }
+    penetration = request.data.map(d => d.penetration);
+    load = request.data.map(d => d.load);
+  } else if (request.penetration && request.load) {
+    // Simplified format with arrays
+    if (!Array.isArray(request.penetration) || !Array.isArray(request.load)) {
+      return { error: 'Penetration and load must be arrays' };
+    }
+    if (request.penetration.length !== request.load.length) {
+      return { error: 'Penetration and load arrays must have the same length' };
+    }
+    if (request.penetration.length === 0) {
+      return { error: 'Data arrays cannot be empty' };
+    }
+    penetration = request.penetration;
+    load = request.load;
+  } else {
+    return { error: 'Either data array or penetration/load arrays are required' };
   }
 
-  return null;
+  // Validate data values
+  for (let i = 0; i < penetration.length; i++) {
+    if (penetration[i] < 0) {
+      return { error: 'Penetration values must be >= 0' };
+    }
+    if (load[i] < 0) {
+      return { error: 'Load values must be >= 0' };
+    }
+  }
+
+  // Convert load units to kN if needed
+  const units = request.units || 'kN';
+  let convertedLoad = [...load];
+  
+  if (units === 'kg') {
+    // Convert kg to kN (kg * 9.81 / 1000)
+    convertedLoad = load.map(l => l * 9.81 / 1000);
+  } else if (units === 'N') {
+    // Convert N to kN (N / 1000)
+    convertedLoad = load.map(l => l / 1000);
+  }
+
+  // Check if we can interpolate at standard penetrations
+  const minPenetration = Math.min(...penetration);
+  const maxPenetration = Math.max(...penetration);
+  
+  if (maxPenetration < 2.5) {
+    return { error: 'Data must extend at least to 2.5mm penetration for CBR calculation' };
+  }
+
+  return { penetration, load: convertedLoad };
 }
 
 async function calculateCBRParameters(request: CBRRequest): Promise<CBRResponse> {
   try {
-    // Validate input data
-    const validationError = validateCBRData(request.data);
-    if (validationError) {
+    // Validate and extract input data
+    const validation = validateCBRInput(request);
+    if (validation.error) {
       return {
         status: 'error',
-        message: validationError
+        message: validation.error
       };
     }
 
     const warnings: string[] = [];
     const classifications: string[] = [];
 
-    // Extract penetration and load arrays
-    const penetration = request.data.map(d => d.penetration);
-    const load = request.data.map(d => d.load);
+    const { penetration, load } = validation;
 
     // Apply load-penetration curve correction
     const { penetration: corrPen, load: correctedLoad } = correctLoadPenetrationCurve(penetration, load);
@@ -196,9 +240,9 @@ async function calculateCBRParameters(request: CBRRequest): Promise<CBRResponse>
     const load_2_5mm = interpolateLoad(corrPen, correctedLoad, 2.5);
     const load_5mm = interpolateLoad(corrPen, correctedLoad, 5.0);
 
-    // Standard loads for CBR calculation (ASTM D1883)
-    const standardLoad_2_5mm = request.units === 'imperial' ? 3000 : 13.24; // lbs or kN
-    const standardLoad_5mm = request.units === 'imperial' ? 4500 : 19.96;   // lbs or kN
+    // Standard loads for CBR calculation (ASTM D1883) in kN
+    const standardLoad_2_5mm = 13.24; // kN at 2.5mm penetration
+    const standardLoad_5mm = 19.96;   // kN at 5.0mm penetration
 
     // Calculate CBR values
     const cbr_2_5mm = (load_2_5mm / standardLoad_2_5mm) * 100;
@@ -249,10 +293,11 @@ async function calculateCBRParameters(request: CBRRequest): Promise<CBRResponse>
 
     // Store results in database if requested
     if (request.store && request.test_id) {
+      const rawData = request.data || penetration.map((p, i) => ({ penetration: p, load: load[i] }));
       await supabase.from('test_results').insert({
         test_id: request.test_id,
         computed_data: computedData,
-        raw_data: request.data,
+        raw_data: rawData,
         metadata: {
           corrections: request.corrections,
           units: request.units,
@@ -262,10 +307,10 @@ async function calculateCBRParameters(request: CBRRequest): Promise<CBRResponse>
       });
     }
 
-    // Prepare chart data
-    const loadPenetrationCurve = request.data.map(d => ({
-      x: d.penetration,
-      y: d.load
+    // Prepare chart data for load-penetration curve plotting
+    const loadPenetrationCurve = penetration.map((p, i) => ({
+      x: p,
+      y: load[i]
     }));
 
     const correctedCurve = corrPen.map((p, i) => ({
@@ -326,17 +371,21 @@ serve(async (req: Request): Promise<Response> => {
 
     const requestData: CBRRequest = await req.json();
     
-    if (!requestData.test_id || !requestData.data) {
+    // Validate input - either simplified format or full format
+    const hasSimpleFormat = requestData.penetration && requestData.load;
+    const hasFullFormat = requestData.test_id && requestData.data;
+    
+    if (!hasSimpleFormat && !hasFullFormat) {
       return new Response(JSON.stringify({ 
         status: 'error', 
-        message: 'Missing required fields: test_id and data' 
+        message: 'Either provide penetration/load arrays or test_id with data array' 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    console.log('Processing CBR computation for test:', requestData.test_id);
+    console.log('Processing CBR computation for:', requestData.test_id || 'direct input');
     
     const result = await calculateCBRParameters(requestData);
     
