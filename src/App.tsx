@@ -15,6 +15,7 @@ import BoreholeLog from "./pages/BoreholeLog";
 import TestInput from "./pages/TestInput";
 import GlobalMap from "./pages/GlobalMap";
 import FoundationAnalysis from "./pages/FoundationAnalysis";
+import ReportBuilder from "./pages/ReportBuilder";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/borehole/:boreholeId" element={<BoreholeLog />} />
           <Route path="/test/:testId" element={<TestInput />} />
           <Route path="/foundation/:projectId" element={<FoundationAnalysis />} />
+          <Route path="/report/:projectId" element={<ReportBuilder />} />
           <Route path="/map" element={<GlobalMap />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

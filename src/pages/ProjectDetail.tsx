@@ -10,8 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, MapPin, Calendar, FileText, Plus, Building, Download, Eye } from 'lucide-react';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, MapPin, Calendar, FileText, Plus, Building, Download, Eye, Edit3, Lock } from 'lucide-react';
+import { Navigate, useNavigate, useParams, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import Map from '@/components/Map';
@@ -694,6 +694,54 @@ const ProjectDetail = () => {
               </Button>
             </div>
 
+            {/* Report Builder Section */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Report Builder
+                </CardTitle>
+                <CardDescription>
+                  Generate comprehensive geotechnical reports with your project data
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center p-4 border rounded-lg">
+                      <Edit3 className="w-8 h-8 mx-auto mb-2 text-primary" />
+                      <h4 className="font-medium">Edit Mode</h4>
+                      <p className="text-sm text-muted-foreground">Full editing capabilities</p>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg">
+                      <Eye className="w-8 h-8 mx-auto mb-2 text-secondary" />
+                      <h4 className="font-medium">Review Mode</h4>
+                      <p className="text-sm text-muted-foreground">Comments and text edits</p>
+                    </div>
+                    <div className="text-center p-4 border rounded-lg">
+                      <Lock className="w-8 h-8 mx-auto mb-2 text-destructive" />
+                      <h4 className="font-medium">Final Mode</h4>
+                      <p className="text-sm text-muted-foreground">Export ready</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button asChild className="flex-1">
+                      <Link to={`/report/${project.id}`}>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Open Report Builder
+                      </Link>
+                    </Button>
+                    <Button variant="outline" disabled>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Template
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Existing Reports */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {reports.map((report) => (
                 <Card key={report.id} className="hover:shadow-lg transition-shadow">
