@@ -39,6 +39,7 @@ interface ReportSectionOutlineProps {
 
 const sectionIcons = {
   cover: FileText,
+  table_of_contents: FileText,
   introduction: FileText,
   layout_map: Map,
   location_map: MapPin,

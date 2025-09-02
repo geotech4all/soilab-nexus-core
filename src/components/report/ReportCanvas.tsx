@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { 
   Plus, 
   Image, 
@@ -14,9 +15,12 @@ import {
   FileText, 
   MapPin,
   Building,
-  TestTube
+  TestTube,
+  Settings
 } from "lucide-react";
 import type { ReportSection, ReportMode } from "@/pages/ReportBuilder";
+import { CoverPage } from "./CoverPage";
+import { TableOfContents } from "./TableOfContents";
 
 interface ReportCanvasProps {
   sections: ReportSection[];
@@ -25,6 +29,9 @@ interface ReportCanvasProps {
   mode: ReportMode;
   project: any;
   testResults: any[];
+  brandColors: { primary: string; secondary: string };
+  pageBreakSettings: Record<string, boolean>;
+  onPageBreakSettingsChange: (settings: Record<string, boolean>) => void;
 }
 
 export function ReportCanvas({
@@ -33,10 +40,24 @@ export function ReportCanvas({
   onContentUpdate,
   mode,
   project,
-  testResults
+  testResults,
+  brandColors,
+  pageBreakSettings,
+  onPageBreakSettingsChange
 }: ReportCanvasProps) {
   const selectedSection = sections.find(s => s.id === selectedSectionId);
   const [comments, setComments] = useState<Record<string, string>>({});
+  const [showPageSettings, setShowPageSettings] = useState(false);
+
+  // Calculate page number for current section
+  const getPageNumber = (sectionId: string) => {
+    const enabledSections = sections
+      .filter(s => s.enabled && s.type !== "cover")
+      .sort((a, b) => a.order - b.order);
+    
+    const sectionIndex = enabledSections.findIndex(s => s.id === sectionId);
+    return sectionIndex >= 0 ? sectionIndex + 1 : 1;
+  };
 
   if (!selectedSection) {
     return (
@@ -63,51 +84,31 @@ export function ReportCanvas({
     switch (selectedSection.type) {
       case "cover":
         return (
-          <div className="space-y-6">
-            <div className="text-center border-2 border-dashed border-border p-8 rounded-lg">
-              <Building className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-              <h1 className="text-3xl font-bold mb-2">Geotechnical Investigation Report</h1>
-              <h2 className="text-xl text-muted-foreground mb-4">{project.name}</h2>
-              <p className="text-muted-foreground">{project.location || "Project Location"}</p>
-            </div>
-            
-            {isStructuralEdit && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Cover Page Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>Report Title</Label>
-                    <Input
-                      value={selectedSection.content.title || "Geotechnical Investigation Report"}
-                      onChange={(e) => handleTextUpdate("title", e.target.value)}
-                      disabled={!isEditable}
-                    />
-                  </div>
-                  <div>
-                    <Label>Subtitle</Label>
-                    <Input
-                      value={selectedSection.content.subtitle || project.name}
-                      onChange={(e) => handleTextUpdate("subtitle", e.target.value)}
-                      disabled={!isEditable}
-                    />
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full">
-                    <Image className="w-4 h-4 mr-2" />
-                    Upload Company Logo
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <CoverPage
+            project={project}
+            content={selectedSection.content}
+            onContentUpdate={(content) => onContentUpdate(selectedSectionId, content)}
+            mode={mode}
+            brandColors={brandColors}
+          />
+        );
+
+      case "table_of_contents":
+        return (
+          <TableOfContents
+            sections={sections}
+            brandColors={brandColors}
+          />
         );
 
       case "introduction":
         return (
           <div className="space-y-6">
             <div className="prose max-w-none">
-              <h2 className="text-2xl font-bold mb-4">Introduction</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">1. Introduction</h2>
+                <span className="text-sm text-muted-foreground">Page {getPageNumber(selectedSectionId)}</span>
+              </div>
               <div className="bg-card border rounded-lg p-6">
                 {isEditable ? (
                   <Textarea
@@ -145,7 +146,10 @@ export function ReportCanvas({
       case "test_holes_summary":
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Summary of Test Holes</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">2. Summary of Test Holes</h2>
+              <span className="text-sm text-muted-foreground">Page {getPageNumber(selectedSectionId)}</span>
+            </div>
             
             <Card>
               <CardContent className="p-6">
@@ -201,7 +205,10 @@ export function ReportCanvas({
         const testResult = testResults.find(r => r.id === selectedSection.content.testResultId);
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">{selectedSection.title}</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">{selectedSection.title}</h2>
+              <span className="text-sm text-muted-foreground">Page {getPageNumber(selectedSectionId)}</span>
+            </div>
             
             {testResult && (
               <div className="space-y-4">
@@ -252,9 +259,12 @@ export function ReportCanvas({
       case "layout_map":
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">
-              {selectedSection.type === "location_map" ? "Location Map" : "Site Layout Map"}
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">
+                {selectedSection.type === "location_map" ? "3. Location Map" : "4. Site Layout Map"}
+              </h2>
+              <span className="text-sm text-muted-foreground">Page {getPageNumber(selectedSectionId)}</span>
+            </div>
             
             <div className="bg-muted/20 border-2 border-dashed rounded-lg p-12">
               <div className="text-center">
@@ -279,7 +289,10 @@ export function ReportCanvas({
       case "foundation_summary":
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Foundation Analysis Summary</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Foundation Analysis Summary</h2>
+              <span className="text-sm text-muted-foreground">Page {getPageNumber(selectedSectionId)}</span>
+            </div>
             
             <div className="bg-muted/20 border-2 border-dashed rounded-lg p-8">
               <div className="text-center">
@@ -301,7 +314,10 @@ export function ReportCanvas({
       default:
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">{selectedSection.title}</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">{selectedSection.title}</h2>
+              <span className="text-sm text-muted-foreground">Page {getPageNumber(selectedSectionId)}</span>
+            </div>
             <div className="bg-muted/20 border-2 border-dashed rounded-lg p-8">
               <div className="text-center">
                 <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
@@ -321,7 +337,7 @@ export function ReportCanvas({
           <div>
             <h3 className="font-semibold">{selectedSection.title}</h3>
             <p className="text-sm text-muted-foreground">
-              Page {selectedSection.order + 1} • {selectedSection.enabled ? "Enabled" : "Disabled"}
+              {selectedSection.type === "cover" ? "Cover Page" : `Page ${getPageNumber(selectedSectionId)}`} • {selectedSection.enabled ? "Enabled" : "Disabled"}
             </p>
           </div>
           
@@ -329,6 +345,16 @@ export function ReportCanvas({
             <Badge variant={selectedSection.enabled ? "default" : "secondary"}>
               {selectedSection.enabled ? "Included" : "Excluded"}
             </Badge>
+
+            {mode === "edit" && (
+              <Button 
+                size="sm" 
+                variant="ghost"
+                onClick={() => setShowPageSettings(!showPageSettings)}
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+            )}
             
             {mode !== "final" && selectedSection.enabled && (
               <Button size="sm" variant="outline">
@@ -338,6 +364,33 @@ export function ReportCanvas({
             )}
           </div>
         </div>
+
+        {/* Page Settings */}
+        {showPageSettings && mode === "edit" && (
+          <Card className="m-4 border-t-0 rounded-t-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Page Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="pageBreak" className="text-sm">Start on new page</Label>
+                <Switch
+                  id="pageBreak"
+                  checked={pageBreakSettings[selectedSectionId] ?? true}
+                  onCheckedChange={(checked) => 
+                    onPageBreakSettingsChange({
+                      ...pageBreakSettings,
+                      [selectedSectionId]: checked
+                    })
+                  }
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                When enabled, this section will start on a new page in the final report
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Canvas Content */}

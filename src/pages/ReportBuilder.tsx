@@ -19,7 +19,7 @@ export type ReportMode = "edit" | "review" | "final";
 export interface ReportSection {
   id: string;
   title: string;
-  type: "cover" | "introduction" | "layout_map" | "location_map" | "test_holes_summary" | "test_section" | "foundation_summary" | "appendix";
+  type: "cover" | "table_of_contents" | "introduction" | "layout_map" | "location_map" | "test_holes_summary" | "test_section" | "foundation_summary" | "appendix";
   enabled: boolean;
   content: any;
   order: number;
@@ -27,12 +27,13 @@ export interface ReportSection {
 
 const defaultSections: ReportSection[] = [
   { id: "cover", title: "Cover Page", type: "cover", enabled: true, content: {}, order: 0 },
-  { id: "intro", title: "Introduction", type: "introduction", enabled: true, content: { text: "" }, order: 1 },
-  { id: "layout", title: "Layout Map", type: "layout_map", enabled: true, content: {}, order: 2 },
-  { id: "location", title: "Location Map", type: "location_map", enabled: true, content: {}, order: 3 },
-  { id: "test_summary", title: "Summary of Test Holes", type: "test_holes_summary", enabled: true, content: {}, order: 4 },
-  { id: "foundation", title: "Foundation Analysis Summary", type: "foundation_summary", enabled: true, content: {}, order: 5 },
-  { id: "appendices", title: "Appendices", type: "appendix", enabled: true, content: {}, order: 6 },
+  { id: "toc", title: "Table of Contents", type: "table_of_contents", enabled: true, content: {}, order: 1 },
+  { id: "intro", title: "Introduction", type: "introduction", enabled: true, content: { text: "" }, order: 2 },
+  { id: "layout", title: "Layout Map", type: "layout_map", enabled: true, content: {}, order: 3 },
+  { id: "location", title: "Location Map", type: "location_map", enabled: true, content: {}, order: 4 },
+  { id: "test_summary", title: "Summary of Test Holes", type: "test_holes_summary", enabled: true, content: {}, order: 5 },
+  { id: "foundation", title: "Foundation Analysis Summary", type: "foundation_summary", enabled: true, content: {}, order: 6 },
+  { id: "appendices", title: "Appendices", type: "appendix", enabled: true, content: {}, order: 7 },
 ];
 
 export default function ReportBuilder() {
@@ -45,8 +46,9 @@ export default function ReportBuilder() {
     fileName: "",
     footerText: "",
     companyLogo: "",
-    brandColors: { primary: "", secondary: "" }
+    brandColors: { primary: "#ef4444", secondary: "#ffffff" }
   });
+  const [pageBreakSettings, setPageBreakSettings] = useState<Record<string, boolean>>({});
 
   // Fetch project data
   const { data: project, isLoading: projectLoading } = useQuery({
@@ -121,7 +123,7 @@ export default function ReportBuilder() {
         const newSections = testSections.filter(ts => !existingIds.has(ts.id));
         
         if (newSections.length > 0) {
-          return [...prev.slice(0, 5), ...newSections, ...prev.slice(5)]
+          return [...prev.slice(0, 6), ...newSections, ...prev.slice(6)]
             .map((section, index) => ({ ...section, order: index }));
         }
         return prev;
@@ -254,6 +256,9 @@ export default function ReportBuilder() {
             mode={mode}
             project={project}
             testResults={testResults || []}
+            brandColors={reportMetadata.brandColors}
+            pageBreakSettings={pageBreakSettings}
+            onPageBreakSettingsChange={setPageBreakSettings}
           />
         </div>
       </div>
