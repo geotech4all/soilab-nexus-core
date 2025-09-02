@@ -21,11 +21,11 @@ const Login = () => {
     if (isAuthenticated && userProfile) {
       // Redirect based on role
       if (userProfile.role === 'admin') {
-        navigate('/admin-dashboard');
+        navigate('/admin-dashboard', { replace: true });
       } else if (userProfile.role === 'company') {
-        navigate('/company-dashboard');
+        navigate('/company-dashboard', { replace: true });
       } else {
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       }
     }
   }, [isAuthenticated, userProfile, navigate]);
@@ -103,11 +103,21 @@ const Login = () => {
             </Button>
           </form>
           
-          <div className="mt-6 text-center text-sm">
-            <span className="text-muted-foreground">Don't have an account? </span>
-            <Link to="/signup" className="text-primary hover:underline">
-              Sign up here
-            </Link>
+          <div className="mt-6 text-center text-sm space-y-2">
+            <div>
+              <span className="text-muted-foreground">Don't have an account? </span>
+              <Link to="/signup" className="text-primary hover:underline">
+                Sign up here
+              </Link>
+            </div>
+            
+            <div className="pt-4 border-t border-border">
+              <p className="text-xs text-muted-foreground mb-2">Demo Login:</p>
+              <div className="space-y-1 text-xs">
+                <p><strong>Email:</strong> dipupojeremiah@gmail.com</p>
+                <p><strong>Password:</strong> demo123456</p>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

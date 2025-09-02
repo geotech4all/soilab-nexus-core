@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -30,16 +31,63 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/admin-dashboard" element={<AdminDashboard />} />
-          <Route path="/company-dashboard" element={<CompanyDashboard />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/create-project" element={<CreateProject />} />
-          <Route path="/project/:id" element={<ProjectDetail />} />
-          <Route path="/borehole/:boreholeId" element={<BoreholeLog />} />
-          <Route path="/test/:testId" element={<TestInput />} />
-          <Route path="/foundation/:projectId" element={<FoundationAnalysis />} />
-          <Route path="/report/:projectId" element={<ReportBuilder />} />
-          <Route path="/map" element={<GlobalMap />} />
+          
+          {/* Protected Admin Routes */}
+          <Route path="/admin-dashboard" element={
+            <ProtectedRoute requiredRoles={['admin']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          } />
+          
+          {/* Protected Company Routes */}
+          <Route path="/company-dashboard" element={
+            <ProtectedRoute requiredRoles={['company', 'admin']}>
+              <CompanyDashboard />
+            </ProtectedRoute>
+          } />
+          
+          {/* Protected User Routes */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/create-project" element={
+            <ProtectedRoute>
+              <CreateProject />
+            </ProtectedRoute>
+          } />
+          <Route path="/project/:id" element={
+            <ProtectedRoute>
+              <ProjectDetail />
+            </ProtectedRoute>
+          } />
+          <Route path="/borehole/:boreholeId" element={
+            <ProtectedRoute>
+              <BoreholeLog />
+            </ProtectedRoute>
+          } />
+          <Route path="/test/:testId" element={
+            <ProtectedRoute>
+              <TestInput />
+            </ProtectedRoute>
+          } />
+          <Route path="/foundation/:projectId" element={
+            <ProtectedRoute>
+              <FoundationAnalysis />
+            </ProtectedRoute>
+          } />
+          <Route path="/report/:projectId" element={
+            <ProtectedRoute>
+              <ReportBuilder />
+            </ProtectedRoute>
+          } />
+          <Route path="/map" element={
+            <ProtectedRoute>
+              <GlobalMap />
+            </ProtectedRoute>
+          } />
+          
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

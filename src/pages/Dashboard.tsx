@@ -135,7 +135,7 @@ const Dashboard = () => {
                 User
               </Badge>
             </div>
-            <Button onClick={signOut} variant="outline">
+            <Button onClick={handleSignOut} variant="outline">
               Sign Out
             </Button>
           </div>
