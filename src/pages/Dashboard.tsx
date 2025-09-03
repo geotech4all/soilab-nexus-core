@@ -102,10 +102,19 @@ const Dashboard = () => {
   };
 
   const handleSignOut = async () => {
-    const { error } = await signOut();
-    if (!error) {
-      navigate('/login', { replace: true });
-    } else {
+    try {
+      const { error } = await signOut();
+      if (!error) {
+        navigate('/login', { replace: true });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to sign out',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Sign out error:', error);
       toast({
         title: 'Error',
         description: 'Failed to sign out',
