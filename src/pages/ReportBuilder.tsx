@@ -13,6 +13,7 @@ import { Link } from "react-router-dom";
 import { ReportSectionOutline } from "@/components/report/ReportSectionOutline";
 import { ReportCanvas } from "@/components/report/ReportCanvas";
 import { ReportModeSelector } from "@/components/report/ReportModeSelector";
+import { TablesManager } from "@/components/report/TablesManager";
 
 export type ReportMode = "edit" | "review" | "final";
 
@@ -233,18 +234,35 @@ export default function ReportBuilder() {
 
       {/* Main Content */}
       <div className="flex h-[calc(100vh-80px)]">
-        {/* Left Sidebar - Section Outline */}
+        {/* Left Sidebar - Section Outline or Tables Manager */}
         <div className="w-80 border-r border-border bg-card">
-          <ReportSectionOutline
-            sections={sections}
-            selectedSectionId={selectedSectionId}
-            onSectionSelect={setSelectedSectionId}
-            onSectionReorder={handleSectionReorder}
-            onSectionToggle={handleSectionToggle}
-            mode={mode}
-            reportMetadata={reportMetadata}
-            onMetadataUpdate={setReportMetadata}
-          />
+          <Tabs defaultValue="sections" className="h-full flex flex-col">
+            <TabsList className="grid w-full grid-cols-2 m-2">
+              <TabsTrigger value="sections">Sections</TabsTrigger>
+              <TabsTrigger value="tables">Tables</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="sections" className="flex-1 mt-0">
+              <ReportSectionOutline
+                sections={sections}
+                selectedSectionId={selectedSectionId}
+                onSectionSelect={setSelectedSectionId}
+                onSectionReorder={handleSectionReorder}
+                onSectionToggle={handleSectionToggle}
+                mode={mode}
+                reportMetadata={reportMetadata}
+                onMetadataUpdate={setReportMetadata}
+              />
+            </TabsContent>
+            
+            <TabsContent value="tables" className="flex-1 mt-0">
+              <TablesManager
+                sections={sections}
+                testResults={testResults || []}
+                onSectionUpdate={handleContentUpdate}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Main Canvas */}

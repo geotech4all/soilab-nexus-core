@@ -21,6 +21,7 @@ import {
 import type { ReportSection, ReportMode } from "@/pages/ReportBuilder";
 import { CoverPage } from "./CoverPage";
 import { TableOfContents } from "./TableOfContents";
+import { TestResultSection } from "./TestResultSection";
 
 interface ReportCanvasProps {
   sections: ReportSection[];
@@ -211,46 +212,11 @@ export function ReportCanvas({
             </div>
             
             {testResult && (
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Test Data</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-muted/20 p-4 rounded-lg border-2 border-dashed">
-                      <div className="flex items-center justify-center h-32">
-                        <div className="text-center">
-                          <BarChart className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                          <p className="text-sm text-muted-foreground">
-                            {testResult.tests.test_type} Results Visualization
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                {testResult.visual_refs && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Charts & Figures</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {Object.keys(testResult.visual_refs).map((key) => (
-                          <div key={key} className="flex items-center gap-2 p-2 bg-muted/50 rounded">
-                            <Image className="w-4 h-4" />
-                            <span className="text-sm">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                            <Badge variant="secondary" className="ml-auto text-xs">
-                              Available
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+              <TestResultSection
+                testResult={testResult}
+                mode={mode}
+                onContentUpdate={(content) => onContentUpdate(selectedSectionId, content)}
+              />
             )}
           </div>
         );
