@@ -1,26 +1,12 @@
-import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Beaker, Building, Users, ArrowRight } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { useRoleBasedRedirect } from '@/hooks/useRoleBasedRedirect';
 
 const Index = () => {
-  const { isAuthenticated, userProfile, loading } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (isAuthenticated && userProfile) {
-      // Redirect based on role
-      if (userProfile.role === 'admin') {
-        navigate('/admin-dashboard');
-      } else if (userProfile.role === 'company') {
-        navigate('/company-dashboard');
-      } else {
-        navigate('/dashboard');
-      }
-    }
-  }, [isAuthenticated, userProfile, navigate]);
+  // Use the role-based redirect hook
+  const { loading } = useRoleBasedRedirect();
 
   if (loading) {
     return (

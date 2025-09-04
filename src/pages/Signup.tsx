@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,8 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { signUpWithRole, type UserRole } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
-import { useEffect } from 'react';
+import { useRoleBasedRedirect } from '@/hooks/useRoleBasedRedirect';
 
 const Signup = () => {
   const [email, setEmail] = useState('');
@@ -18,21 +17,9 @@ const Signup = () => {
   const [role, setRole] = useState<UserRole>('user');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate();
-  const { isAuthenticated, userProfile } = useAuth();
-
-  useEffect(() => {
-    if (isAuthenticated && userProfile) {
-      // Redirect based on role
-      if (userProfile.role === 'admin') {
-        navigate('/admin-dashboard');
-      } else if (userProfile.role === 'company') {
-        navigate('/company-dashboard');
-      } else {
-        navigate('/dashboard');
-      }
-    }
-  }, [isAuthenticated, userProfile, navigate]);
+  
+  // Use the role-based redirect hook
+  useRoleBasedRedirect();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

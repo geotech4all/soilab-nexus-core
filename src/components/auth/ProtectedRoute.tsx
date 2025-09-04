@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { getRoleBasedPath, canAccessRoute } from '@/hooks/useRoleBasedRedirect';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -30,13 +31,9 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
 
   // Check role-based access if roles are specified
   if (requiredRoles && requiredRoles.length > 0) {
-    const hasRequiredRole = requiredRoles.includes(userProfile.role) || userProfile.role === 'admin';
-    
-    if (!hasRequiredRole) {
+    if (!canAccessRoute(userProfile.role, requiredRoles)) {
       // Redirect to appropriate dashboard based on user role
-      const redirectPath = userProfile.role === 'admin' ? '/admin-dashboard' : 
-                          userProfile.role === 'company' ? '/company-dashboard' : 
-                          '/dashboard';
+      const redirectPath = getRoleBasedPath(userProfile.role);
       return <Navigate to={redirectPath} replace />;
     }
   }

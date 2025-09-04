@@ -10,18 +10,24 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch user profile with role information
+          // Fetch user profile with role information - use setTimeout to prevent deadlock
           setTimeout(async () => {
-            const profile = await getCurrentUserWithRole();
-            setUserProfile(profile);
-            setLoading(false);
+            try {
+              const profile = await getCurrentUserWithRole();
+              setUserProfile(profile);
+            } catch (error) {
+              console.error('Error fetching user profile:', error);
+              setUserProfile(null);
+            } finally {
+              setLoading(false);
+            }
           }, 0);
         } else {
           setUserProfile(null);
@@ -30,16 +36,21 @@ export const useAuth = () => {
       }
     );
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // THEN get initial session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        getCurrentUserWithRole().then((profile) => {
+        try {
+          const profile = await getCurrentUserWithRole();
           setUserProfile(profile);
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+          setUserProfile(null);
+        } finally {
           setLoading(false);
-        });
+        }
       } else {
         setLoading(false);
       }
