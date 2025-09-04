@@ -22,6 +22,7 @@ import type { ReportSection, ReportMode } from "@/pages/ReportBuilder";
 import { CoverPage } from "./CoverPage";
 import { TableOfContents } from "./TableOfContents";
 import { TestResultSection } from "./TestResultSection";
+import { FoundationSummary } from "./FoundationSummary";
 
 interface ReportCanvasProps {
   sections: ReportSection[];
@@ -256,24 +257,15 @@ export function ReportCanvas({
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold">Foundation Analysis Summary</h2>
               <span className="text-sm text-muted-foreground">Page {getPageNumber(selectedSectionId)}</span>
             </div>
             
-            <div className="bg-muted/20 border-2 border-dashed rounded-lg p-8">
-              <div className="text-center">
-                <BarChart className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  Foundation analysis results will be displayed here
-                </p>
-                {isStructuralEdit && (
-                  <Button variant="outline" className="mt-4">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Insert Foundation Analysis
-                  </Button>
-                )}
-              </div>
-            </div>
+            <FoundationSummary
+              mode={mode}
+              testResults={testResults}
+              content={selectedSection.content}
+              onContentUpdate={(content) => onContentUpdate(selectedSectionId, content)}
+            />
           </div>
         );
 
