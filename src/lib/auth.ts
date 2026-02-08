@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 export type UserRole = 'admin' | 'company' | 'user';
 
@@ -10,101 +9,84 @@ export interface AuthUser {
   role: UserRole;
   company_id: string | null;
   created_at: string;
+  clerk_id: string | null;
 }
 
 /**
- * Sign up a new user with a specific role
+ * Sync a Clerk user to the Supabase users table via edge function
  */
-export const signUpWithRole = async (
+export const syncClerkUser = async (
+  clerkUserId: string,
   email: string,
-  password: string,
-  fullName: string,
-  role: UserRole = 'user',
-  companyName?: string,
-  companyId?: string
-) => {
+  fullName?: string,
+  companyName?: string
+): Promise<AuthUser | null> => {
   try {
-    // First, sign up the user with Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-      },
-    });
+    const response = await fetch(
+      'https://fbifazlicxbyhryzozbe.supabase.co/functions/v1/sync-clerk-user',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiaWZhemxpY3hieWhyeXpvemJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4NzQ1MjMsImV4cCI6MjA2NzQ1MDUyM30.iQc0gbcFFSqplu3jLiuxUox9ivTk5axEAuAjUAAaFH0',
+        },
+        body: JSON.stringify({
+          clerk_user_id: clerkUserId,
+          email,
+          full_name: fullName,
+          company_name: companyName,
+        }),
+      }
+    );
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error('No user data returned');
-
-    // Handle company creation/association
-    let finalCompanyId = companyId;
-    
-    if (companyName && !companyId) {
-      // Create a new company
-      const { data: companyData, error: companyError } = await supabase
-        .from('companies')
-        .insert({
-          name: companyName,
-          contact_email: email,
-        })
-        .select()
-        .single();
-
-      if (companyError) throw companyError;
-      finalCompanyId = companyData.id;
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Sync error:', errorData);
+      return null;
     }
 
-    // Then, create the user record in our users table with the role
-    const userData: TablesInsert<'users'> = {
-      id: authData.user.id,
-      email,
-      full_name: fullName,
-      role,
-      company_id: finalCompanyId || null,
+    const data = await response.json();
+    const user = data.user;
+
+    return {
+      id: user.id,
+      email: user.email,
+      full_name: user.full_name,
+      role: user.role as UserRole,
+      company_id: user.company_id,
+      created_at: user.created_at,
+      clerk_id: user.clerk_id,
     };
-
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .insert(userData)
-      .select()
-      .single();
-
-    if (userError) throw userError;
-
-    return { user: authData.user, userRecord, error: null };
   } catch (error) {
-    console.error('Sign up error:', error);
-    return { user: null, userRecord: null, error };
+    console.error('Error syncing Clerk user:', error);
+    return null;
   }
 };
 
 /**
- * Get current user with role information
+ * Get user profile by Clerk ID from Supabase
  */
-export const getCurrentUserWithRole = async (): Promise<AuthUser | null> => {
+export const getUserByClerkId = async (clerkId: string): Promise<AuthUser | null> => {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) return null;
-
-    const { data: userRecord, error: userError } = await supabase
+    const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('id', user.id)
-      .single();
+      .eq('clerk_id', clerkId)
+      .maybeSingle();
 
-    if (userError || !userRecord) return null;
+    if (error || !data) return null;
 
     return {
-      id: userRecord.id,
-      email: userRecord.email,
-      full_name: userRecord.full_name,
-      role: userRecord.role as UserRole,
-      company_id: userRecord.company_id,
-      created_at: userRecord.created_at,
+      id: data.id,
+      email: data.email,
+      full_name: data.full_name,
+      role: data.role as UserRole,
+      company_id: data.company_id,
+      created_at: data.created_at,
+      clerk_id: data.clerk_id,
     };
   } catch (error) {
-    console.error('Error getting user with role:', error);
+    console.error('Error getting user by Clerk ID:', error);
     return null;
   }
 };
@@ -134,10 +116,7 @@ export const updateUserRole = async (userId: string, newRole: UserRole) => {
  */
 export const hasRole = (user: AuthUser | null, requiredRole: UserRole): boolean => {
   if (!user) return false;
-  
-  // Admin has access to everything
   if (user.role === 'admin') return true;
-  
   return user.role === requiredRole;
 };
 
@@ -146,10 +125,7 @@ export const hasRole = (user: AuthUser | null, requiredRole: UserRole): boolean 
  */
 export const hasAnyRole = (user: AuthUser | null, roles: UserRole[]): boolean => {
   if (!user) return false;
-  
-  // Admin has access to everything
   if (user.role === 'admin') return true;
-  
   return roles.includes(user.role);
 };
 
@@ -159,13 +135,10 @@ export const hasAnyRole = (user: AuthUser | null, roles: UserRole[]): boolean =>
 export const getUsersByRole = async (role?: UserRole) => {
   try {
     let query = supabase.from('users').select('*');
-    
     if (role) {
       query = query.eq('role', role);
     }
-    
     const { data, error } = await query.order('created_at', { ascending: false });
-    
     if (error) throw error;
     return { data, error: null };
   } catch (error) {

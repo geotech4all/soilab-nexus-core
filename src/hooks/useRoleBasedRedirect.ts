@@ -4,8 +4,8 @@ import { useAuth } from './useAuth';
 import type { UserRole } from '@/lib/auth';
 
 /**
- * Hook to handle role-based redirects
- * Automatically redirects authenticated users to their appropriate dashboard
+ * Hook to handle role-based redirects.
+ * Automatically redirects authenticated users to their appropriate dashboard.
  */
 export const useRoleBasedRedirect = () => {
   const { isAuthenticated, userProfile, loading } = useAuth();
@@ -42,9 +42,6 @@ export const getRoleBasedPath = (role: UserRole): string => {
  */
 export const canAccessRoute = (userRole: UserRole, requiredRoles?: UserRole[]): boolean => {
   if (!requiredRoles || requiredRoles.length === 0) return true;
-  
-  // Admin has access to everything
   if (userRole === 'admin') return true;
-  
   return requiredRoles.includes(userRole);
 };

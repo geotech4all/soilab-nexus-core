@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, Layers, BarChart3, Shield, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useRoleBasedRedirect } from '@/hooks/useRoleBasedRedirect';
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/clerk-react';
 import { motion } from 'framer-motion';
 
 const fadeUp = {
@@ -33,16 +34,24 @@ const Index = () => {
             Geotech<span className="text-primary">4All</span>
           </span>
           <div className="flex items-center gap-3">
-            <Link to="/login">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                Sign in
-              </Button>
-            </Link>
-            <Link to="/signup">
-              <Button size="sm">
-                Get Started
-              </Button>
-            </Link>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                  Sign in
+                </Button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <Button size="sm">
+                  Get Started
+                </Button>
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <Link to="/dashboard">
+                <Button variant="ghost" size="sm">Dashboard</Button>
+              </Link>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
           </div>
         </div>
       </nav>
@@ -88,16 +97,25 @@ const Index = () => {
             animate="visible"
             custom={3}
           >
-            <Link to="/signup">
-              <Button size="lg" className="h-12 px-8 text-base rounded-full">
-                Start for free <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button size="lg" variant="outline" className="h-12 px-8 text-base rounded-full">
-                Sign in
-              </Button>
-            </Link>
+            <SignedOut>
+              <SignUpButton mode="modal">
+                <Button size="lg" className="h-12 px-8 text-base rounded-full">
+                  Start for free <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </SignUpButton>
+              <SignInButton mode="modal">
+                <Button size="lg" variant="outline" className="h-12 px-8 text-base rounded-full">
+                  Sign in
+                </Button>
+              </SignInButton>
+            </SignedOut>
+            <SignedIn>
+              <Link to="/dashboard">
+                <Button size="lg" className="h-12 px-8 text-base rounded-full">
+                  Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </SignedIn>
           </motion.div>
         </div>
 
@@ -179,11 +197,20 @@ const Index = () => {
           <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto">
             Join engineers and companies already using Geotech4All for faster, more reliable soil analysis.
           </p>
-          <Link to="/signup">
-            <Button size="lg" className="h-12 px-8 text-base rounded-full">
-              Create your account <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
+          <SignedOut>
+            <SignUpButton mode="modal">
+              <Button size="lg" className="h-12 px-8 text-base rounded-full">
+                Create your account <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </SignUpButton>
+          </SignedOut>
+          <SignedIn>
+            <Link to="/dashboard">
+              <Button size="lg" className="h-12 px-8 text-base rounded-full">
+                Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </SignedIn>
         </motion.div>
       </section>
 
