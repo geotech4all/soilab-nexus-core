@@ -323,6 +323,7 @@ export type Database = {
       }
       users: {
         Row: {
+          clerk_id: string | null
           company_id: string | null
           created_at: string
           email: string
@@ -331,6 +332,7 @@ export type Database = {
           role: string
         }
         Insert: {
+          clerk_id?: string | null
           company_id?: string | null
           created_at?: string
           email: string
@@ -339,6 +341,7 @@ export type Database = {
           role: string
         }
         Update: {
+          clerk_id?: string | null
           company_id?: string | null
           created_at?: string
           email?: string

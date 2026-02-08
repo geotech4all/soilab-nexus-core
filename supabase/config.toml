@@ -32,3 +32,15 @@ verify_jwt = true
 
 [functions.compute-cbr]
 verify_jwt = true
+
+[functions.sync-clerk-user]
+verify_jwt = false
+
+[functions.compute-compaction]
+verify_jwt = true
+
+[functions.compute-foundation-shallow]
+verify_jwt = true
+
+[functions.compute-foundation-pile]
+verify_jwt = true
