@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { signUpWithRole, type UserRole } from '@/lib/auth';
+import { syncClerkUser, type UserRole } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 
 export const SignUpForm = () => {
@@ -20,12 +20,15 @@ export const SignUpForm = () => {
     setLoading(true);
 
     try {
-      const { user, userRecord, error } = await signUpWithRole(
+      // SignUpForm is legacy - Clerk handles signup now
+      // This form could call syncClerkUser after Clerk signup if needed
+      const userRecord = await syncClerkUser(
+        'pending', // clerk_id would come from Clerk
         email,
-        password,
         fullName,
-        role
       );
+      const user = userRecord;
+      const error = userRecord ? null : { message: 'Failed to sync user' };
 
       if (error) {
         toast({
