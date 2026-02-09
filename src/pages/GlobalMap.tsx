@@ -175,25 +175,36 @@ const GlobalMap = () => {
       markerElement.className = 'w-8 h-8 bg-primary rounded-full border-2 border-background shadow-lg cursor-pointer flex items-center justify-center';
       markerElement.innerHTML = '<svg class="w-4 h-4 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>';
 
-      // Create popup content
-      const popupContent = `
-        <div class="p-3 min-w-[200px]">
-          <h3 class="font-semibold text-sm mb-1">${project.name}</h3>
-          <p class="text-xs text-muted-foreground mb-2">${project.company_name}</p>
-          <p class="text-xs mb-2">${project.test_count} test${project.test_count !== 1 ? 's' : ''}</p>
-          <button 
-            onclick="window.location.href='/project/${project.id}'"
-            class="w-full bg-primary text-primary-foreground px-2 py-1 rounded text-xs hover:bg-primary/90"
-          >
-            View Project
-          </button>
-        </div>
-      `;
+      // Create popup content using DOM methods to prevent XSS
+      const popupEl = document.createElement('div');
+      popupEl.className = 'p-3 min-w-[200px]';
+
+      const title = document.createElement('h3');
+      title.className = 'font-semibold text-sm mb-1';
+      title.textContent = project.name;
+
+      const company = document.createElement('p');
+      company.className = 'text-xs text-muted-foreground mb-2';
+      company.textContent = project.company_name;
+
+      const testCount = document.createElement('p');
+      testCount.className = 'text-xs mb-2';
+      testCount.textContent = `${project.test_count} test${project.test_count !== 1 ? 's' : ''}`;
+
+      const viewBtn = document.createElement('button');
+      viewBtn.className = 'w-full bg-primary text-primary-foreground px-2 py-1 rounded text-xs hover:bg-primary/90';
+      viewBtn.textContent = 'View Project';
+      viewBtn.addEventListener('click', () => { window.location.href = `/project/${project.id}`; });
+
+      popupEl.appendChild(title);
+      popupEl.appendChild(company);
+      popupEl.appendChild(testCount);
+      popupEl.appendChild(viewBtn);
 
       const popup = new mapboxgl.Popup({
         offset: 25,
         closeButton: false,
-      }).setHTML(popupContent);
+      }).setDOMContent(popupEl);
 
       new mapboxgl.Marker(markerElement)
         .setLngLat([project.longitude, project.latitude])
